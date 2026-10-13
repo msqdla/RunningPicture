@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>跑步打卡日签生成器 · 截图自动识别</title>
+<link rel="stylesheet" href="card.css">
+</head>
+<body>
+<header>
+  <div class="logo">🏃</div>
+  <h1>跑步打卡日签生成器</h1>
+  <span class="tag">截图自动识别</span>
+</header>
+
+<div class="wrap">
+  <!-- ===== 左：操作区 ===== -->
+  <div class="form-panel">
+
+    <div class="section upload-section">
+      <h2>① 上传跑步记录截图</h2>
+      <div id="drop" class="dropzone">
+        <div class="dz-icon">📷</div>
+        <div class="dz-title">点击选择 / 拖拽 / 直接粘贴截图</div>
+        <div class="dz-sub">支持 Apple Watch、悦跑圈、Keep、咕咚、华为运动健康等截图 · 识别后请核对数据</div>
+        <input type="file" id="shotFile" accept="image/*" hidden>
+      </div>
+      <div id="ocrStatus" class="ocr-status" hidden>
+        <div class="spinner"></div>
+        <span id="ocrText">正在识别中…</span>
+      </div>
+      <div id="ocrLog" class="ocr-log" hidden></div>
+      <img id="shotThumb" class="shot-thumb" hidden alt="已上传截图">
+    </div>
+
+    <div class="section">
+      <h2>② 核对 / 修改数据</h2>
+      <div class="grid2">
+        <div><label>日期</label><input type="date" id="date"></div>
+        <div><label>昵称</label><input type="text" id="name" value="老达啊"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>跑步打卡天数</label><input type="number" id="runDays" value="3714"></div>
+        <div><label>App 名称（右上角）</label><input type="text" id="appName" value="Joyrun·悦跑圈"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>距离（公里）</label><input type="number" id="km" value="21.27" step="0.01"></div>
+        <div><label>消耗（大卡）</label><input type="number" id="kcal" value="1234"></div>
+        <div><label>用时</label><input type="text" id="duration" placeholder="时:分:秒"></div>
+        <div><label>平均配速</label><input type="text" id="pace" placeholder="如 8'49&quot;"></div>
+        <div><label>平均心率（次/分）</label><input type="number" id="hr"></div>
+        <div><label>平均步频（步/分）</label><input type="number" id="cadence"></div>
+        <div><label>爬升高度（米）</label><input type="number" id="elev"></div>
+        <div><label>平均功率（瓦）</label><input type="number" id="power"></div>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn secondary" id="reOcr">🔁 重新识别</button>
+        <button class="btn secondary" id="clearAll">🧹 清空</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>③ 激励话语</h2>
+      <textarea id="quote">出发
+永远是最有意义的事</textarea>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn secondary" id="randomQuote">🎲 随机一句</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>④ 背景图（可选）</h2>
+      <input type="file" id="bgFile" accept="image/*">
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn secondary" id="defaultBg">默认日景</button>
+        <button class="btn secondary" id="defaultBg2">默认夜景</button>
+        <button class="btn secondary" id="useShot">用截图当背景</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>⑤ 导出</h2>
+      <div class="btn-row">
+        <button class="btn" id="dl34">⬇️ 保存 3:4 图片</button>
+        <button class="btn" id="dl916">⬇️ 保存 9:16 图片</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 右：预览区 ===== -->
+  <div class="preview-panel">
+    <div class="preview-area">
+      <div class="tabs">
+        <div class="tab active" data-ratio="34">3 : 4</div>
+        <div class="tab" data-ratio="916">9 : 16</div>
+      </div>
+      <canvas id="cv" width="810" height="1080"></canvas>
+      <p class="hint">识别结果仅作预填，请以实际数据为准</p>
+    </div>
+  </div>
+</div>
+
+<footer>上传截图 → 自动识别 → 生成打卡日签 · 支持 3:4 / 9:16 · 可直接分享朋友圈 / 小红书</footer>
+
+<script src="tesseract.min.js"></script>
+<script src="card.js"></script>
+</body>
+</html>
