@@ -87,7 +87,7 @@
     // 天数模式：跑步第 N 天 / 倒计时第 N 天
     const mode = $("dayMode").value;
     let dayNum = $("runDays").value || "1";
-    let dayPrefix = "这是我在悦跑圈的第 ";
+    let dayPrefix = "这是跑的第 ";
     if (mode === "countdown") {
       const tv = $("targetDate").value;
       if (tv) {
