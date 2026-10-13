@@ -25,9 +25,20 @@
   const ctx = cv.getContext("2d");
 
   let ratio = "34";      // 34 -> 810x1080 ; 916 -> 810x1440
-  let bgImg = null;      // 自定义背景
+  let bgImg = null;      // 自定义背景图
   let shotImg = null;    // 用户上传的跑步截图
+  let bgStyle = "night"; // 苹果风纯色方案
   let busy = false;
+
+  // 苹果风配色（纯色 + 极轻的径向光晕，克制、大气）
+  const BACKGROUNDS = {
+    night:    { name: "深空", top: "#1c1c1e", bottom: "#000000", light: false },
+    graphite: { name: "石墨", top: "#4a4a4f", bottom: "#252528", light: false },
+    silver:   { name: "月银", top: "#ececf1", bottom: "#c2c2cb", light: true  },
+    ocean:    { name: "深海", top: "#1d3a5f", bottom: "#0a1622", light: false },
+    mist:     { name: "晨雾", top: "#e3ebf0", bottom: "#aebfca", light: true  },
+    ink:      { name: "墨黑", top: "#2b2b30", bottom: "#0e0e10", light: false }
+  };
 
   // ---------- 初始化 ----------
   const today = new Date();
@@ -35,28 +46,36 @@
   $("quote").value = QUOTES[0].join("\n");
 
   // ---------- 渲染卡片 ----------
-  function drawDefaultBg(c, night) {
+  // 苹果风背景：柔和线性渐变 + 顶部极淡光晕，无具象山影
+  function drawDefaultBg(c, style) {
     const w = Number(c.canvas.width) || 810;
     const h = Number(c.canvas.height) || 1080;
-    let g;
-    if (night) {
-      g = c.createLinearGradient(0, 0, w, h);
-      g.addColorStop(0, "#16233d"); g.addColorStop(.5, "#1c3b38"); g.addColorStop(1, "#0b1526");
+    const cfg = BACKGROUNDS[style] || BACKGROUNDS.night;
+
+    const g = c.createLinearGradient(0, 0, w * 0.35, h);
+    g.addColorStop(0, cfg.top);
+    g.addColorStop(1, cfg.bottom);
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, h);
+
+    // 顶部柔光（模拟环境光，增强层次但不抢主体）
+    const rg = c.createRadialGradient(w * 0.78, h * 0.06, 0, w * 0.78, h * 0.06, h * 0.62);
+    if (cfg.light) {
+      rg.addColorStop(0, "rgba(255,255,255,0.75)");
+      rg.addColorStop(1, "rgba(255,255,255,0)");
     } else {
-      g = c.createLinearGradient(0, 0, w, h);
-      g.addColorStop(0, "#2e5e8a"); g.addColorStop(.45, "#3d7a6e"); g.addColorStop(1, "#22483f");
+      rg.addColorStop(0, "rgba(255,255,255,0.10)");
+      rg.addColorStop(1, "rgba(255,255,255,0)");
     }
-    c.fillStyle = g; c.fillRect(0, 0, w, h);
-    c.fillStyle = "rgba(0,0,0,0.22)";
-    c.beginPath(); c.moveTo(0, h * .62);
-    c.quadraticCurveTo(w * .25, h * .44, w * .5, h * .6);
-    c.quadraticCurveTo(w * .75, h * .74, w, h * .56);
-    c.lineTo(w, h); c.lineTo(0, h); c.closePath(); c.fill();
-    c.fillStyle = "rgba(0,0,0,0.35)";
-    c.beginPath(); c.moveTo(0, h * .8);
-    c.quadraticCurveTo(w * .35, h * .66, w * .7, h * .8);
-    c.quadraticCurveTo(w * .88, h * .86, w, h * .78);
-    c.lineTo(w, h); c.lineTo(0, h); c.closePath(); c.fill();
+    c.fillStyle = rg;
+    c.fillRect(0, 0, w, h);
+  }
+
+  // 根据背景明暗决定文字主色
+  function theme(cfg) {
+    return cfg && cfg.light
+      ? { main: "#1d1d1f", sub: "rgba(29,29,31,0.62)", line: "rgba(0,0,0,0.10)" }
+      : { main: "#ffffff", sub: "rgba(255,255,255,0.66)", line: "rgba(255,255,255,0.14)" };
   }
 
   function getInputs() {
@@ -64,11 +83,31 @@
     const mm = String(dv.getMonth() + 1).padStart(2, "0");
     const dd = String(dv.getDate()).padStart(2, "0");
     const wd = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][dv.getDay()];
+
+    // 天数模式：跑步第 N 天 / 倒计时第 N 天
+    const mode = $("dayMode").value;
+    let dayNum = $("runDays").value || "1";
+    let dayPrefix = "这是我在悦跑圈的第 ";
+    if (mode === "countdown") {
+      const tv = $("targetDate").value;
+      if (tv) {
+        const t = new Date(tv + "T00:00:00");
+        const diff = Math.round((t - dv) / 86400000);
+        dayNum = Math.abs(diff);
+        dayPrefix = "距离目标还有 ";
+      } else {
+        dayNum = $("runDays").value || "0";
+        dayPrefix = "距离目标还有 ";
+      }
+    }
+
     return {
       dateStr: mm + "." + dd,
       weekday: wd,
       name: $("name").value || "跑者",
-      runDays: $("runDays").value || "1",
+      dayNum: dayNum,
+      dayPrefix: dayPrefix,
+      dayUnit: mode === "countdown" ? " 天" : " 天",
       appName: $("appName").value || "",
       km: $("km").value || "0.00",
       kcal: $("kcal").value || "0",
@@ -78,6 +117,7 @@
       cadence: $("cadence").value || "--",
       elev: $("elev").value || "--",
       power: $("power").value || "--",
+      accent: $("accentColor").value || "#FA3E5C",
       quoteLines: ($("quote").value || "").split("\n").map(s => s.trim()).filter(Boolean)
     };
   }
@@ -97,105 +137,148 @@
     const H = ratio === "34" ? 1080 : 1440;
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
     const d = getInputs();
-    const off = ratio === "916" ? (H - 1080) * 0.42 : 0;
-    const FONT = "'PingFang SC','Microsoft YaHei',-apple-system,sans-serif";
+    const FONT = "-apple-system,'SF Pro Display','PingFang SC','Microsoft YaHei',sans-serif";
+    const cfg = BACKGROUNDS[bgStyle] || BACKGROUNDS.night;
 
-    // 背景
+    // 内容整体垂直排布（9:16 时下方留白更多）
+    const padX = 64;
+
+    // ===== 背景 =====
     if (bgImg) {
-      const s = Math.max(W / bgImg.width, H / bgImg.height);
-      const dw = bgImg.width * s, dh = bgImg.height * s;
+      const sc = Math.max(W / bgImg.width, H / bgImg.height);
+      const dw = bgImg.width * sc, dh = bgImg.height * sc;
       ctx.drawImage(bgImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      // 轻压暗，保证文字可读
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.fillRect(0, 0, W, H);
+      var th = { main: "#fff", sub: "rgba(255,255,255,0.72)", line: "rgba(255,255,255,0.16)" };
     } else {
-      drawDefaultBg(ctx, false);
+      drawDefaultBg(ctx, bgStyle);
+      th = theme(cfg);
     }
-    const g2 = ctx.createLinearGradient(0, 0, 0, H);
-    g2.addColorStop(0, "rgba(0,0,0,0.38)");
-    g2.addColorStop(.5, "rgba(0,0,0,0.16)");
-    g2.addColorStop(1, "rgba(0,0,0,0.58)");
-    ctx.fillStyle = g2; ctx.fillRect(0, 0, W, H);
 
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
 
-    // 日期大字
-    ctx.fillStyle = "#fff";
-    ctx.font = "800 108px " + FONT;
-    ctx.fillText(d.dateStr, 56, 152 + off);
-    ctx.font = "500 34px " + FONT;
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fillText(d.weekday, 58, 207 + off);
+    // ===== 顶部：日期 + App 名 =====
+    const topY = 148;
+    ctx.fillStyle = th.main;
+    ctx.font = "600 46px " + FONT;
+    ctx.fillText(d.dateStr, padX, topY);
+    ctx.font = "400 26px " + FONT;
+    ctx.fillStyle = th.sub;
+    ctx.fillText(d.weekday, padX + ctx.measureText(d.dateStr).width + 210, topY);
 
-    // 右上角
+    // 右上角 App 名
     ctx.textAlign = "right";
-    ctx.font = "italic 700 38px Georgia,'PingFang SC',serif";
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
-    ctx.fillText(d.appName, W - 56, 128 + off);
-    ctx.fillStyle = "#fff";
-    ctx.font = "800 62px " + FONT;
-    ctx.fillText(d.km, W - 148, 228 + off);
-    ctx.font = "500 30px " + FONT;
-    ctx.fillText("公里", W - 56, 228 + off);
-    ctx.font = "800 52px " + FONT;
-    ctx.fillText(d.kcal, W - 148, 298 + off);
-    ctx.font = "500 30px " + FONT;
-    ctx.fillText("大卡", W - 56, 298 + off);
+    ctx.font = "500 26px " + FONT;
+    ctx.fillStyle = th.sub;
+    ctx.fillText(d.appName, W - padX, topY);
     ctx.textAlign = "left";
 
-    // 激励语
-    let qy = 430 + off;
-    ctx.font = "700 60px " + FONT;
-    ctx.fillStyle = "#fff";
-    for (const line of d.quoteLines) {
-      for (const wl of wrapText(ctx, line, W - 112)) {
-        ctx.fillText(wl, 58, qy); qy += 84;
-      }
+    // 顶部分隔线（极细，苹果风）
+    const lineY = topY + 46;
+    ctx.strokeStyle = th.line;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padX, lineY); ctx.lineTo(W - padX, lineY); ctx.stroke();
+
+    // ===== 主数据：公里（巨大、克制）=====
+    const kmY = ratio === "34" ? 400 : 520;
+    ctx.fillStyle = th.main;
+    ctx.font = "700 190px " + FONT;
+    const kmText = String(d.km);
+    ctx.fillText(kmText, padX - 8, kmY);
+    const kmW = ctx.measureText(kmText).width;
+    ctx.font = "500 40px " + FONT;
+    ctx.fillStyle = th.sub;
+    ctx.fillText("公里", padX + kmW + 12, kmY);
+
+    // 副数据行：消耗 / 用时 / 配速
+    const subY = kmY + 74;
+    const subs = [
+      [d.kcal, "大卡"],
+      [d.duration, "用时"],
+      [d.pace, "配速"]
+    ];
+    let sx = padX;
+    for (const [val, label] of subs) {
+      ctx.fillStyle = th.main;
+      ctx.font = "700 44px " + FONT;
+      ctx.fillText(String(val), sx, subY);
+      const w = ctx.measureText(String(val)).width;
+      ctx.font = "400 26px " + FONT;
+      ctx.fillStyle = th.sub;
+      ctx.fillText(label, sx + w + 8, subY - 4);
+      sx += Math.max(w + 90, 210);
     }
 
-    // 底部头像 + 昵称 + 天数
-    const baseY = (ratio === "916" ? H - 150 : H - 172);
-    const cx = 92, cy = baseY - 26, r = 40;
+    // ===== 激励语：位于下三分之一 =====
+    const qStart = ratio === "34" ? subY + 168 : subY + 300;
+    let qy = qStart;
+    ctx.font = "600 56px " + FONT;
+    let first = true;
+    for (const line of d.quoteLines) {
+      ctx.fillStyle = first ? d.accent : th.main;
+      for (const wl of wrapText(ctx, line, W - padX * 2)) {
+        ctx.fillText(wl, padX, qy);
+        qy += 78;
+      }
+      first = false;
+    }
+
+    // ===== 底部：头像 + 昵称 + 天数 =====
+    const baseY = ratio === "34" ? H - 148 : H - 190;
+    const cx = padX + 42, cy = baseY - 40, r = 42;
+
     ctx.save();
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = "rgba(250,62,92,0.6)"; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-    ctx.fillStyle = "#fff"; ctx.font = "700 40px " + FONT;
+    ctx.fillStyle = d.accent;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.fillStyle = "#fff";
+    ctx.font = "600 40px " + FONT;
     ctx.textAlign = "center";
     ctx.fillText(d.name.charAt(0), cx, cy + 14);
     ctx.restore();
-    ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 3; ctx.stroke();
     ctx.textAlign = "left";
 
-    ctx.fillStyle = "#fff"; ctx.font = "700 40px " + FONT;
-    ctx.fillText(d.name, 156, baseY - 40);
-    ctx.font = "400 28px " + FONT;
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    const t1 = "这是我在悦跑圈的第 ";
-    ctx.fillText(t1, 156, baseY + 6);
-    const tw = ctx.measureText(t1).width;
-    ctx.font = "700 28px " + FONT;
-    ctx.fillStyle = "#ffd45e";
-    ctx.fillText(d.runDays + " 天", 156 + tw, baseY + 6);
+    ctx.fillStyle = th.main;
+    ctx.font = "600 44px " + FONT;
+    ctx.fillText(d.name, cx + r + 26, baseY - 54);
 
-    // 3:4 底部数据条
+    ctx.font = "400 26px " + FONT;
+    ctx.fillStyle = th.sub;
+    const t1 = d.dayPrefix;
+    ctx.fillText(t1, cx + r + 26, baseY - 8);
+    const tw = ctx.measureText(t1).width;
+    ctx.font = "700 26px " + FONT;
+    ctx.fillStyle = d.accent;
+    ctx.fillText(d.dayNum, cx + r + 26 + tw, baseY - 8);
+    const nw = ctx.measureText(d.dayNum).width;
+    ctx.font = "400 26px " + FONT;
+    ctx.fillStyle = th.sub;
+    ctx.fillText(" 天", cx + r + 26 + tw + nw, baseY - 8);
+
+    // ===== 3:4 底部小数据条（心率 / 步频 / 爬升）=====
     if (ratio === "34") {
-      const y = H - 58;
-      const items = [
-        ["用时", d.duration],
-        ["配速", d.pace === "--" ? "--" : d.pace + "/公里"],
+      const barY = H - 56;
+      ctx.strokeStyle = th.line;
+      ctx.beginPath(); ctx.moveTo(padX, barY - 46); ctx.lineTo(W - padX, barY - 46); ctx.stroke();
+
+      const cells = [
         ["心率", d.hr === "--" ? "--" : d.hr + " 次/分"],
-        ["步频", d.cadence]
+        ["步频", d.cadence === "--" ? "--" : d.cadence + " 步/分"],
+        ["爬升", d.elev === "--" ? "--" : d.elev + " 米"]
       ];
-      const colW = (W - 112) / items.length;
-      let x = 56;
-      for (const [k, v] of items) {
-        ctx.font = "500 25px " + FONT;
-        ctx.fillStyle = "rgba(255,255,255,0.58)";
-        ctx.fillText(k, x, y - 32);
-        ctx.font = "700 28px " + FONT;
-        ctx.fillStyle = "#fff";
-        ctx.fillText(String(v).slice(0, 12), x, y);
-        x += colW;
-      }
+      const cw = (W - padX * 2) / cells.length;
+      cells.forEach(([k, v], i) => {
+        const x = padX + cw * i;
+        ctx.font = "400 22px " + FONT;
+        ctx.fillStyle = th.sub;
+        ctx.fillText(k, x, barY - 14);
+        ctx.font = "600 28px " + FONT;
+        ctx.fillStyle = th.main;
+        ctx.fillText(v, x, barY + 22);
+      });
     }
   }
 
@@ -723,8 +806,32 @@
     });
   });
 
-  ["date","name","runDays","appName","km","kcal","duration","pace","hr","cadence","elev","power","quote"]
+  ["date","name","runDays","appName","km","kcal","duration","pace","hr","cadence","elev","power","quote","accentColor","targetDate"]
     .forEach(id => $(id).addEventListener("input", render));
+
+  // 天数模式切换
+  $("dayMode").addEventListener("change", () => {
+    const isRun = $("dayMode").value === "run";
+    $("runDaysBox").hidden = !isRun;
+    $("countdownBox").hidden = isRun;
+    if (!isRun && !$("targetDate").value) {
+      // 默认目标日期：约 3 个月后，方便直接看效果
+      const t = new Date(); t.setDate(t.getDate() + 100);
+      $("targetDate").value = t.toISOString().slice(0, 10);
+    }
+    render();
+  });
+
+  // 背景色板
+  document.querySelectorAll(".sw").forEach(sw => {
+    sw.addEventListener("click", () => {
+      document.querySelectorAll(".sw").forEach(x => x.classList.remove("active"));
+      sw.classList.add("active");
+      bgStyle = sw.dataset.bg;
+      bgImg = null;          // 选纯色时清掉自定义图
+      render();
+    });
+  });
 
   // 上传交互
   const drop = $("drop"), fileInput = $("shotFile");
@@ -775,15 +882,6 @@
     const i = new Image();
     i.onload = () => { bgImg = i; render(); };
     i.src = u;
-  });
-  $("defaultBg").addEventListener("click", () => { bgImg = null; render(); });
-  $("defaultBg2").addEventListener("click", () => {
-    const oc = document.createElement("canvas");
-    oc.width = 1080; oc.height = 1620;
-    drawDefaultBg(oc.getContext("2d"), true);
-    const i = new Image();
-    i.onload = () => { bgImg = i; render(); };
-    i.src = oc.toDataURL();
   });
   $("useShot").addEventListener("click", () => {
     if (!shotImg) return alert("请先上传一张跑步记录截图");
